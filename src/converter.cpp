@@ -24,7 +24,7 @@ ConverterRGB24::~ConverterRGB24()
   av_frame_free(&framergb);
 }
 
-const AVFrame& ConverterRGB24::convert(const AVFrame &frame, unsigned char* out_rgb)
+void ConverterRGB24::convert(const AVFrame &frame, unsigned char* out_image)
 {
   int w = frame.width;
   int h = frame.height;
@@ -37,14 +37,13 @@ const AVFrame& ConverterRGB24::convert(const AVFrame &frame, unsigned char* out_
   if (!context)
     throw std::runtime_error("cannot allocate context");
   
-  // Setup framergb with out_rgb as external buffer. Also say that we want RGB24 output.
-  av_image_fill_arrays(framergb->data, framergb->linesize, out_rgb, AV_PIX_FMT_RGB24, w, h, 1);
+  // Setup framergb with out_image as external buffer, let framergb point to out_image. Also say that we want RGB24 output.
+  av_image_fill_arrays(framergb->data, framergb->linesize, out_image, AV_PIX_FMT_RGB24, w, h, 1);
   // Do the conversion.
   sws_scale(context, frame.data, frame.linesize, 0, h,
             framergb->data, framergb->linesize);
   framergb->width = w;
   framergb->height = h;
-  return *framergb;
 }
 
 /*

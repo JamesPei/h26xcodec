@@ -112,7 +112,7 @@ const AVFrame& H26xDecoder::decode_frame()
 #endif
 }
 
-void H26xDecoder::decode_video(const std::string& video_path, const std::string& output_dir){
+void H26xDecoder::decode_video(const std::string& video_path, std::vector<std::shared_ptr<AVFrame>>& decoded_frames){
   // Open input file
   int error_code = avformat_open_input(&formatContext, video_path.c_str(), nullptr, nullptr);
   if(error_code<0){
@@ -161,25 +161,13 @@ void H26xDecoder::decode_video(const std::string& video_path, const std::string&
 
   av_image_fill_arrays(frame->data, frame->linesize, buffer, AV_PIX_FMT_RGB24, context->width, context->height, 1);
 
-  ConverterRGB24 converter;
-
-  uint32_t i = 0;
   while (av_read_frame(formatContext, pkt) >= 0)
   {
     if(pkt->stream_index == videoStreamIndex){
       int response = avcodec_send_packet(context, pkt);
       if (response >= 0) {
           while (avcodec_receive_frame(context, frame) >= 0) {
-              int         w, h;
-              std::tie(w, h)      = width_height(*frame);
-              size_t out_size = converter.predict_size(w, h);
-              std::string out_buffer(out_size, '\0');
-              converter.convert(*frame, (ubyte*)out_buffer.c_str());
-              const std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
-              std::string output_file_name = std::to_string(now.time_since_epoch().count())+"_"+std::to_string(i)+".rgb";
-              std::ofstream output_stream(output_dir+"/"+output_file_name, std::ios::binary);
-
-              output_stream.write(out_buffer.c_str(), out_size);
+              decoded_frames.push_back(std::make_shared<AVFrame>(*frame));
           }
       }
     }

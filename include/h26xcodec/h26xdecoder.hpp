@@ -20,6 +20,8 @@ mechanisms of boost::python.
 #include <cstdlib>
 #include <stdexcept>
 #include <utility>
+#include <vector>
+#include <memory>
 #include "h26xexceptions.hpp"
 
 struct AVCodecContext;
@@ -55,7 +57,7 @@ bytes at frame boundaries.
   ptrdiff_t parse(const unsigned char* in_data, ptrdiff_t in_size);
   bool is_frame_available() const;
   const AVFrame& decode_frame();
-  void decode_video(const std::string& video_path, const std::string& output_path);
+  void decode_video(const std::string& video_path, std::vector<std::shared_ptr<AVFrame>>& decoded_frames);
 };
 
 void disable_logging();

@@ -2,8 +2,10 @@
 #include <string>
 #include <filesystem>
 #include <iostream>
+#include <chrono>
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
+#include <h26xcodec/converter.hpp>
 
 namespace fs = std::filesystem;
 
@@ -28,35 +30,31 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
     input_stream.read(&data_in[0], len);
     ssize_t num_consumed = decoder.parse((unsigned char*)data_in.c_str(), len);
 
-    decoder.decode_video(source_file_path, output_dir_path);
+    std::vector<std::shared_ptr<AVFrame>> decoded_frames;
+    decoder.decode_video(source_file_path, decoded_frames);
+
+    if(target_format=="rgb" || target_format=="jpeg"){
+        ConverterRGB24 converter;
+        int i=0;
+        for(auto frame: decoded_frames){
+            int         w, h;
+            std::tie(w, h)      = width_height(*frame);
+            size_t out_size = converter.predict_size(w, h);
+
+            std::string out_buffer(out_size, '\0');
+            converter.convert(*frame, (unsigned char*)out_buffer.c_str());
+            const std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+            std::string output_file_name = std::to_string(now.time_since_epoch().count())+"_"+std::to_string(i)+".rgb";
+            std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
+            output_stream.write(out_buffer.c_str(), out_size);
+            i++;
+        }
+    }
 }
 
 bool decode_frame_to_image(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format){
     fs::path source_path(source_file_path);
     fs::path output_path(output_file_path);
-
-    // H26xDecoder decoder(source_format);
-
-    // if(!fs::exists(source_path)){
-    //     throw fs::filesystem_error("source file not exists", std::error_code());
-    // }
-
-    // if(fs::is_directory(source_path)){
-    //     for(const fs::directory_entry& dir_entry: fs::recursive_directory_iterator(source_path)){
-    //         if(fs::is_regular_file(dir_entry.path())){
-    //             std::string data_in(len, '\0');
-    //             input_stream.read(&data_in[0], len);
-    //             ssize_t num_consumed = decoder.parse((unsigned char*)data_in.c_str(), len);
-
-    //             bool is_frame_available = false;
-    //             // if((is_frame_available = decoder.is_frame_available())){
-    //             //     consr auto& frame = decoder.decode_frame();
-    //             // }
-    //         }
-    //     }
-    // }else if (fs::is_regular_file(source_path)){
-
-    // }
 }
 
 bool encode_image_to_frame(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format){
