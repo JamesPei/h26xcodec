@@ -1,3 +1,7 @@
+#pragma once
+
+#include <memory>
+
 struct SwsContext;
 struct AVFrame;
 
@@ -28,8 +32,14 @@ public:
 
   int predict_size(int w, int h) override;
   void convert(const AVFrame &frame, unsigned char* out_image) override;
+  std::unique_ptr<std::string> to_jpeg();
 
 private:
   SwsContext *context;
-  AVFrame *framergb;
+  SwsContext *swsContext;
+  AVFrame *frameRGB;
+  AVFrame *frameYUV;
+  const AVCodec* jpegCodec;
+  AVCodecContext* jpegContext;
+  AVPacket packet;
 };

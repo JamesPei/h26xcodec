@@ -33,7 +33,7 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
     std::vector<std::shared_ptr<AVFrame>> decoded_frames;
     decoder.decode_video(source_file_path, decoded_frames);
 
-    if(target_format=="rgb" || target_format=="jpeg"){
+    if(target_format=="rgb" || target_format=="jpeg" || target_format=="jpg"){
         ConverterRGB24 converter;
         int i=0;
         for(auto frame: decoded_frames){
@@ -44,7 +44,13 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
             std::string out_buffer(out_size, '\0');
             converter.convert(*frame, (unsigned char*)out_buffer.c_str());
             const std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
-            std::string output_file_name = std::to_string(now.time_since_epoch().count())+"_"+std::to_string(i)+".rgb";
+
+            std::string output_file_name = std::to_string(now.time_since_epoch().count())+"_"+std::to_string(i)+"."+target_format;
+
+            if(target_format=="jpg" || target_format=="jpeg"){
+                auto converted_jpeg = converter.to_jpeg();
+                out_buffer = *converted_jpeg;
+            }
             std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
             output_stream.write(out_buffer.c_str(), out_size);
             i++;
