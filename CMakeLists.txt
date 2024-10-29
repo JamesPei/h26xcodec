@@ -16,4 +16,4 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     )
 target_link_libraries(${PROJECT_NAME} PRIVATE FFMPEG::avcodec FFMPEG::avutil FFMPEG::avformat FFMPEG::swscale x264 x265 pthread z swresample m vdpau X11 va va-drm va-x11)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} DESTINATION /usr/local/bin)

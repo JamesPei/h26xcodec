@@ -2,16 +2,17 @@
 A collection of H264/H265 encoder and decoder.
 
 ## Dependency
-1. ffmpeg
+1. ffmpeg(version>=7.0 recommanded)
 2. cxxopts
 
 ## Build
-very simple
+very simple, go into this dir and
 ```
 mkdir build
 cd build
 cmake ..
-make
+make -jN
+make install
 ```
 
 ## Usage

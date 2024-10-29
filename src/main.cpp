@@ -3,11 +3,23 @@
 #include <filesystem>
 #include <iostream>
 #include <chrono>
+#include <map>
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
 #include <h26xcodec/converter.hpp>
 
 namespace fs = std::filesystem;
+
+struct EncoderParameters{
+    uint32_t width=0;
+    uint32_t height=0;
+    std::string input_pixel_format;
+    uint32_t gop_size=0;
+    uint32_t fps=25;
+    uint32_t refs=0;
+    uint32_t max_b_frames=0;
+    uint32_t thread_num=4;
+};
 
 std::string str_tolower(std::string s){
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
@@ -58,12 +70,12 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
     }
 }
 
-bool decode_frame_to_image(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format){
-    fs::path source_path(source_file_path);
-    fs::path output_path(output_file_path);
-}
+// bool decode_frame_to_image(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format){
+//     fs::path source_path(source_file_path);
+//     fs::path output_path(output_file_path);
+// }
 
-bool encode_image_to_frame(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format){
+bool encode_image_to_frame(const std::string& source_file_path, const std::string& output_file_path, const std::string& source_format, const std::string& target_format, const EncoderParameters& parameters, bool single_file){
     fs::path source_path(source_file_path);
     fs::path output_path(output_file_path);
 
@@ -72,6 +84,73 @@ bool encode_image_to_frame(const std::string& source_file_path, const std::strin
     }
 
     H26xEncoder encoder(target_format);
+    encoder.SetWidth(parameters.width);
+    encoder.SetHeight(parameters.height);
+    encoder.SetInputPixelFormat(parameters.input_pixel_format);
+    encoder.SetGopSize(parameters.gop_size);
+    encoder.SetFps(parameters.fps);
+    encoder.SetRefs(parameters.refs);
+    encoder.SetMaxBFrames(parameters.max_b_frames);
+    encoder.SetThreadNum(parameters.thread_num);
+    std::map<std::string, std::string> options;
+    options.insert({"preset","veryfast"});
+    options.insert({"crf","10"});
+    encoder.SetOptions(options);
+    encoder.Enable();
+
+    std::vector<fs::path> image_files;   
+    for(auto const& dir_entry: fs::directory_iterator(source_path)){
+        if(dir_entry.is_regular_file()){
+            image_files.emplace_back(dir_entry.path());
+        }
+    }
+
+    // sort files in alphabetical order.
+    std::sort(image_files.begin(), image_files.end());
+
+    std::ofstream output_file;
+    if(single_file && !fs::is_directory(output_path)){
+        output_file=std::ofstream(output_path.string(), std::ios::binary|std::ios::app);
+    }else if(fs::is_directory(output_path)){
+        throw fs::filesystem_error("output path can't be a dir when --single setted", std::error_code());
+    }
+
+    ConverterRGB24 converter;
+
+    std::vector<std::vector<char>> output_files;
+    uint32_t i=0;
+    for(fs::path image_path: image_files){
+        size_t file_size=fs::file_size(image_path);
+        std::ifstream input_image(image_path.string(), std::ios::binary);
+        
+        std::string buffer(file_size,'\0');
+        std::vector<char> output;
+        if(source_format=="jpeg" || source_format=="jpg"){
+            std::unique_ptr<std::string> rgbframe = converter.from_jpeg(image_path.string());
+            buffer = *rgbframe;
+        }else{
+            input_image.read(&buffer[0], file_size);
+        }
+
+        encoder.Encode((uint8_t*)buffer.c_str(), output);
+
+        if(single_file){
+            output_file.write(output.data(), output.size());
+        }else{
+            std::ofstream output_stream(output_path.string()+"/"+std::to_string(i)+"."+target_format, std::ios::binary);
+            output_stream.write(output.data(), output.size());
+            i++;
+        }
+    }
+
+    std::vector<char> output;
+    encoder.Encode(nullptr, output);
+    if(single_file){
+        output_file.write(output.data(), output.size());
+    }else{
+        std::ofstream output_stream(output_path.string()+"/"+std::to_string(i)+"."+target_format, std::ios::binary);
+        output_stream.write(output.data(), output.size());
+    }
 }
 
 int main(int argc, char const *argv[])
@@ -89,7 +168,16 @@ int main(int argc, char const *argv[])
         ("sf", "the format of source file, for decode is h264/h265, for encode is jpg/png/yuv420p/rgb", cxxopts::value<std::string>()->default_value("h265"))
         ("tf", "the format of target file, for decode is jpg/png/yuv420p/rgb, for encode is h264/h265", cxxopts::value<std::string>()->default_value("jpeg"))
         ("o,output", "output path", cxxopts::value<std::string>()->default_value("."))
-        ("params", "other parameters", cxxopts::value<std::string>()->default_value("."))
+        ("width", "image width, only for encoder", cxxopts::value<int>()->default_value("0"))
+        ("height", "image height, only for encoder", cxxopts::value<int>()->default_value("0"))
+        ("input_pixel_format", "input_pixel_format, only for encoder", cxxopts::value<std::string>()->default_value("RGB24"))
+        ("gop_size", "gop size, only for encoder", cxxopts::value<int>()->default_value("0"))
+        ("fps", "fps, only for encoder", cxxopts::value<int>()->default_value("25"))
+        ("refs", "refs, only for encoder", cxxopts::value<int>()->default_value("0"))
+        ("max_b_frames", "max_b_frames, only for encoder", cxxopts::value<int>()->default_value("0"))
+        ("thread_num", "thread_num, only for encoder", cxxopts::value<int>()->default_value("4"))
+        ("encoder_config", "a json file which include parameters of encoder, only for encoder", cxxopts::value<std::string>()->default_value(" "))
+        ("single", "encode to a single file, only for encoder", cxxopts::value<bool>()->default_value("false"))
         ;
     auto result = options.parse(argc, argv);
 
@@ -121,13 +209,38 @@ int main(int argc, char const *argv[])
 
         }
     }else if(opt_encode){
-        if(source_format!="jpg" || source_format!="jpeg" || source_format!="png" || source_format!="yuv420p" || source_format!="rgb"){
+        if(source_format!="jpg" && source_format!="jpeg" && source_format!="png" && source_format!="yuv420p" && source_format!="rgb"){
             throw cxxopts::exceptions::specification("illegal source format");
         }
-        if(target_format!="h264" || target_format!="h265" || target_format!="hevc"){
+        if(target_format!="h264" && target_format!="h265" && target_format!="hevc"){
             throw cxxopts::exceptions::specification("illegal target format");
         }
+        
+        EncoderParameters encoder_parameters;
+        if(result["encoder_config"].as<std::string>()!=" "){
+            
+        }
 
+        if(result["width"].as<int>()){
+            encoder_parameters.width = result["width"].as<int>();
+        }
+        if(result["height"].as<int>()){
+            encoder_parameters.height = result["height"].as<int>();
+        }
+
+        if(encoder_parameters.width==0 || encoder_parameters.height==0){
+            throw cxxopts::exceptions::specification("width and height must be specified");
+        }
+
+        encoder_parameters.input_pixel_format=result["input_pixel_format"].as<std::string>();
+        encoder_parameters.gop_size=result["gop_size"].as<int>();
+        encoder_parameters.fps=result["fps"].as<int>();
+        encoder_parameters.refs=result["refs"].as<int>();
+        encoder_parameters.max_b_frames=result["max_b_frames"].as<int>();
+        encoder_parameters.thread_num=result["thread_num"].as<int>();
+
+        bool output_single_file = result["single"].as<bool>();
+        encode_image_to_frame(result["path"].as<std::string>(), result["output"].as<std::string>(), source_format, target_format, encoder_parameters, output_single_file);
     }
 
     return 0;

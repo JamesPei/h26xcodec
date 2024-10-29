@@ -33,6 +33,7 @@ public:
   int predict_size(int w, int h) override;
   void convert(const AVFrame &frame, unsigned char* out_image) override;
   std::unique_ptr<std::string> to_jpeg();
+  std::unique_ptr<std::string> from_jpeg(std::string jpeg_path);
 
 private:
   SwsContext *context;
