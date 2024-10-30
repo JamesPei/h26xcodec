@@ -4,11 +4,13 @@
 #include <iostream>
 #include <chrono>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
 #include <h26xcodec/converter.hpp>
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
 
 struct EncoderParameters{
     uint32_t width=0;
@@ -19,6 +21,7 @@ struct EncoderParameters{
     uint32_t refs=0;
     uint32_t max_b_frames=0;
     uint32_t thread_num=4;
+    std::map<std::string, std::string> options;
 };
 
 std::string str_tolower(std::string s){
@@ -92,10 +95,7 @@ bool encode_image_to_frame(const std::string& source_file_path, const std::strin
     encoder.SetRefs(parameters.refs);
     encoder.SetMaxBFrames(parameters.max_b_frames);
     encoder.SetThreadNum(parameters.thread_num);
-    std::map<std::string, std::string> options;
-    options.insert({"preset","veryfast"});
-    options.insert({"crf","10"});
-    encoder.SetOptions(options);
+    encoder.SetOptions(parameters.options);
     encoder.Enable();
 
     std::vector<fs::path> image_files;   
@@ -218,7 +218,16 @@ int main(int argc, char const *argv[])
         
         EncoderParameters encoder_parameters;
         if(result["encoder_config"].as<std::string>()!=" "){
-            
+            std::ifstream config_file(result["encoder_config"].as<std::string>());
+            json data = json::parse(config_file);
+            encoder_parameters.width = data["width"];
+            encoder_parameters.height = data["height"];
+            encoder_parameters.input_pixel_format = data["input_pixel_format"];
+            encoder_parameters.gop_size = data["gop_size"];
+            encoder_parameters.fps = data["fps"];
+            encoder_parameters.refs = data["refs"];
+            encoder_parameters.max_b_frames = data["max_b_frames"];
+            encoder_parameters.thread_num = data["thread_num"];
         }
 
         if(result["width"].as<int>()){
