@@ -260,13 +260,15 @@ bool H26xEncoder::recvPacket(std::vector<char>& output)
 
 bool H26xEncoder::Encode(uint8_t const* input, std::vector<char>& output)
 {
-    if (input_pixel_format_ == AV_PIX_FMT_YUV420P)
-    {
-        fillYuv420pFrame(input);
-    }
-    else if (input_pixel_format_ == AV_PIX_FMT_RGB24)
-    {
-        fillRgb24Frame(input);
+    if(input){
+        if (input_pixel_format_ == AV_PIX_FMT_YUV420P)
+        {
+            fillYuv420pFrame(input);
+        }
+        else if (input_pixel_format_ == AV_PIX_FMT_RGB24)
+        {
+            fillRgb24Frame(input);
+        }
     }
     sendFrame();
     return recvPacket(output);

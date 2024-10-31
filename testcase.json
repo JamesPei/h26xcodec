@@ -1,0 +1,14 @@
+{"width": 512,
+ "height": 256,
+ "input_pixel_format": "rgb",
+ "fps": 10,
+ "gop_size": 30,
+ "refs": 1,
+ "max_b_frames": 0,
+ "thread_num": 4,
+ "options": {
+     "preset": "veryfast",
+     "crf": "10",
+     "tune": "zerolatency"
+    }
+}

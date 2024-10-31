@@ -32,7 +32,6 @@ ConverterRGB24::~ConverterRGB24()
   avcodec_close(jpegContext);
   avcodec_free_context(&jpegContext);
   sws_freeContext(context);
-  av_frame_free(&frameYUV);
   av_frame_free(&frameRGB);
 }
 
@@ -92,6 +91,7 @@ std::unique_ptr<std::string> ConverterRGB24::to_jpeg() {
     }
 
     // 创建目标 AVFrame 用于存储 YUVJ420P 格式的数据
+    AVFrame* frameYUV;
     frameYUV = av_frame_alloc();
     frameYUV->format = AV_PIX_FMT_YUVJ420P;
     frameYUV->width = jpegContext->width;
@@ -109,6 +109,8 @@ std::unique_ptr<std::string> ConverterRGB24::to_jpeg() {
         std::cerr << "Error sending frame to JPEG codec." << std::endl;
         throw std::runtime_error("Error sending frame to JPEG codec.");
     }
+
+    av_frame_free(&frameYUV);
 
     ret = avcodec_receive_packet(jpegContext, &packet);
     if (ret == 0) {

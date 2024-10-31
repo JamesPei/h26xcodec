@@ -39,7 +39,6 @@ private:
   SwsContext *context;
   SwsContext *swsContext;
   AVFrame *frameRGB;
-  AVFrame *frameYUV;
   const AVCodec* jpegCodec;
   AVCodecContext* jpegContext;
   AVPacket packet;
