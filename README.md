@@ -74,9 +74,9 @@ Suppose you have an H.265 video file named lr30v.h265 and a folder ./testout/enc
 `h26xcodec -d -p lr30v.h265 -o ./testout --tf jpg`
 2. decode frames to jpg and output to ./testout  
 `h26xcodec -d -f -p ./frames -o ./testout --sf h265 --tf jpg`
-3. encode jpg to a h265 video which named lr30v.h265 with configure json file
+3. encode jpg to a h265 video which named lr30v.h265 with configure json file  
 `h26xcodec -e -p ./testout/encode_test/ --sf jpg --tf h265 -o lr30v.h265 --encoder_config testcase.json --single`
-4. encode jpg to a h265 video which named lr30v.h265 with parameters
+4. encode jpg to a h265 video which named lr30v.h265 with parameters  
 `h26xcodec -e -p testout/encode_test/ --sf jpg --tf h265 -o lr30v.h265 --width 512 --height 256 --fps 10 --gop_size 30 --single --refs 1 --single`
-5. encode jpg to h265 frame
+5. encode jpg to h265 frame  
 `h26xcodec -e -p ./testout/encode_test/ --sf jpg --tf h265 -o lr30v.h265 --encoder_config testcase.json`

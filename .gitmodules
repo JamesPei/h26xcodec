@@ -1,0 +1,12 @@
+[submodule "modules"]
+	path = modules
+	url = git@github.com:FFmpeg/FFmpeg.git
+[submodule "FFmpeg"]
+	path = FFmpeg
+	url = git@github.com:FFmpeg/FFmpeg.git
+[submodule "json"]
+	path = json
+	url = git@github.com:nlohmann/json.git
+[submodule "cxxopts"]
+	path = cxxopts
+	url = git@github.com:jarro2783/cxxopts.git
