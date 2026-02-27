@@ -199,12 +199,12 @@ bool H26xEncoder::sendFrame()
         {
             if (gop_size_ == 0 || frame_index_ % gop_size_ == 0)
             {
-                frame_->key_frame = 1;
+                frame_->flags |= AV_FRAME_FLAG_KEY;
                 frame_->pict_type = AVPictureType::AV_PICTURE_TYPE_I;
             }
             else
             {
-                frame_->key_frame = 0;
+                frame_->flags &= ~AV_FRAME_FLAG_KEY;
                 frame_->pict_type = AVPictureType::AV_PICTURE_TYPE_P;
             }
         }

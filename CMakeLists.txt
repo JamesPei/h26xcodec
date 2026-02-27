@@ -3,12 +3,15 @@ project(h26xcodec)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+endif()
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 
 find_package(FFMPEG REQUIRED COMPONENTS avcodec avutil swscale avformat)
 find_package(CXXOPTS REQUIRED)
-find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src SRCS)
 

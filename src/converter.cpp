@@ -29,7 +29,6 @@ ConverterRGB24::ConverterRGB24():context(nullptr),swsContext(nullptr),jpegCodec(
 ConverterRGB24::~ConverterRGB24()
 {
   av_packet_unref(&packet);
-  avcodec_close(jpegContext);
   avcodec_free_context(&jpegContext);
   sws_freeContext(context);
   av_frame_free(&frameRGB);
