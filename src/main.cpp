@@ -5,6 +5,7 @@
 #include <chrono>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <h26xcodec/video_reader.hpp>
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
 #include <h26xcodec/converter.hpp>
@@ -33,7 +34,7 @@ std::string str_tolower(std::string s){
     return s;
 }
 
-bool decode_video_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
+bool decode_h26x_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
     fs::path source_path(source_file_path);
     fs::path output_path(output_dir_path);
 
@@ -75,6 +76,10 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
             i++;
         }
     }
+}
+
+bool decode_mp4_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
+    return true;
 }
 
 bool decode_frame_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
@@ -264,19 +269,37 @@ int main(int argc, char const *argv[])
     std::string source_format = str_tolower(result["sf"].as<std::string>());
     std::string target_format = str_tolower(result["tf"].as<std::string>());
     if(opt_decode){
-        if(source_format!="h264" && source_format!="h265" && source_format!="hevc"){
-            throw cxxopts::exceptions::specification("illegal source format");
-        }
         if(target_format!="jpg" && target_format!="jpeg" && target_format!="png" && target_format!="yuv420p" && target_format!="rgb"){
             throw cxxopts::exceptions::specification("illegal target format");
         }
 
         std::string source_file_path(result["path"].as<std::string>());
+
+
         std::cout << "\033[1;32mdecode " + source_file_path + "...\033[0m" <<std::endl;
         if(result.count("f")){
             decode_frame_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
         }else{
-            decode_video_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            // check if frame is H264/H265 
+            VideoReader video_reader(source_file_path);
+            video_reader.Open();
+            FrameFormat frame_format = video_reader.get_frame_format();
+            std::string video_format = video_reader.get_file_format();
+            if(frame_format != FrameFormat::H264 && frame_format != FrameFormat::H265){
+                std::cout << "UnKnown Format" << std::endl;
+                throw cxxopts::exceptions::specification("illegal source format");
+            }else if (frame_format == FrameFormat::H264) {
+                source_format = "h264";
+            }else if (frame_format == FrameFormat::H265) {
+                source_format = "h265";
+            }
+            if(video_format.find("mp4") != video_format.npos){
+                std::cout << "MP4" << std::endl;
+                decode_mp4_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            }else{
+                std::cout << source_format << std::endl;
+                decode_h26x_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            }
         }
         std::cout << "\033[1;32mdecode " + source_file_path + " complete\033[0m" <<std::endl;
     }else if(opt_encode){

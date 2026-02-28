@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef __H26XCODEC_ENCODER__
+#define __H26XCODEC_ENCODER__
+
 #include <fstream>
 #include <map>
 #include <string>
@@ -246,3 +249,5 @@ protected:
 
     int frame_index_;
 };
+
+#endif
