@@ -1,4 +1,8 @@
 #pragma once
+
+#ifndef __H26XCODEC_DECODER__
+#define __H26XCODEC_DECODER__
+
 /*
 This h26x decoder class  is just a thin wrapper around libav 
 functions to decode h26x videos. It would have been easy to use 
@@ -76,3 +80,5 @@ int row_size(const AVFrame&);
  * https://libav.org/documentation/doxygen/release/9/group__lavc__picture.html
  * http://dranger.com/ffmpeg/tutorial01.html
  */
+
+ #endif

@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef __H26XCODEC_CONVERTOR__
+#define __H26XCODEC_CONVERTOR__
+
 #include <memory>
 
 struct SwsContext;
@@ -43,3 +46,5 @@ private:
   AVCodecContext* jpegContext;
   AVPacket packet;
 };
+
+#endif

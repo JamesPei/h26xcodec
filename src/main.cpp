@@ -5,9 +5,13 @@
 #include <chrono>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <h26xcodec/video_reader.hpp>
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
 #include <h26xcodec/converter.hpp>
+#include <h26xcodec/extractor.hpp>
+#include <h26xcodec/h26xexceptions.hpp>
+#include <cstring>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -33,7 +37,7 @@ std::string str_tolower(std::string s){
     return s;
 }
 
-bool decode_video_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
+bool decode_h26x_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
     fs::path source_path(source_file_path);
     fs::path output_path(output_dir_path);
 
@@ -75,6 +79,53 @@ bool decode_video_to_image(const std::string& source_file_path, const std::strin
             i++;
         }
     }
+}
+
+bool decode_mp4_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
+    Extractor extractor(source_file_path);
+    std::vector<std::string> frames;
+    extractor.extract(frames);
+
+    std::cout << "read " << frames.size() << " frames" << std::endl;
+
+    H26xDecoder decoder(source_format);
+    ConverterRGB24 converter;
+
+    int output_file_index = 0;
+    for(auto o_frame: frames){
+        size_t num_consumed = 0;
+        if(o_frame.size() > 0){
+            num_consumed = decoder.parse((unsigned char*)o_frame.c_str(), o_frame.size());
+        }
+
+        while (decoder.is_frame_available())
+        {
+            try {
+                const auto& frame = decoder.decode_frame();
+                int         w, h;
+                std::tie(w, h)      = width_height(frame);
+                size_t out_size = converter.predict_size(w, h);
+                std::string out_buffer(out_size, '\0');
+                converter.convert(frame, (unsigned char*)out_buffer.c_str());
+
+                if(target_format=="jpg" || target_format=="jpeg"){
+                    auto converted_jpeg = converter.to_jpeg();
+                    out_buffer = *converted_jpeg;
+                }
+
+                std::string output_file_name = std::to_string(output_file_index) + "." + target_format;
+                std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
+                output_stream.write(out_buffer.c_str(), out_buffer.size());
+                output_file_index++;
+            } catch (const H26xDecodeFailure& e) {
+                if (std::strstr(e.what(), "EAGAIN"))
+                    break;
+                throw;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool decode_frame_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
@@ -122,27 +173,33 @@ bool decode_frame_to_image(const std::string& source_file_path, const std::strin
         
         while (decoder.is_frame_available())
         {
-            const auto& frame = decoder.decode_frame();
-            int         w, h;
-            std::tie(w, h)      = width_height(frame);
-            size_t out_size = converter.predict_size(w, h);
-            std::string out_buffer(out_size, '\0');
-            converter.convert(frame, (unsigned char*)out_buffer.c_str());
+            try {
+                const auto& frame = decoder.decode_frame();
+                int         w, h;
+                std::tie(w, h)      = width_height(frame);
+                size_t out_size = converter.predict_size(w, h);
+                std::string out_buffer(out_size, '\0');
+                converter.convert(frame, (unsigned char*)out_buffer.c_str());
 
-            if(target_format=="jpg" || target_format=="jpeg"){
-                auto converted_jpeg = converter.to_jpeg();
-                out_buffer = *converted_jpeg;
-            }
+                if(target_format=="jpg" || target_format=="jpeg"){
+                    auto converted_jpeg = converter.to_jpeg();
+                    out_buffer = *converted_jpeg;
+                }
 
-            if(filename_index >= frame_files.size()){
-                break;
+                if(filename_index >= frame_files.size()){
+                    break;
+                }
+                size_t last_dot = frame_files[filename_index].string().rfind('.');
+                size_t last_backslash = frame_files[filename_index].string().rfind('/');
+                std::string output_file_name = frame_files[filename_index].string().substr(last_backslash+1, last_dot-last_backslash)+target_format;
+                std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
+                output_stream.write(out_buffer.c_str(), out_size);
+                filename_index++;
+            } catch (const H26xDecodeFailure& e) {
+                if (std::strstr(e.what(), "EAGAIN"))
+                    break;
+                throw;
             }
-            size_t last_dot = frame_files[filename_index].string().rfind('.');
-            size_t last_backslash = frame_files[filename_index].string().rfind('/');
-            std::string output_file_name = frame_files[filename_index].string().substr(last_backslash+1, last_dot-last_backslash)+target_format;
-            std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
-            output_stream.write(out_buffer.c_str(), out_size);
-            filename_index++;
         }
     }
 }
@@ -264,19 +321,36 @@ int main(int argc, char const *argv[])
     std::string source_format = str_tolower(result["sf"].as<std::string>());
     std::string target_format = str_tolower(result["tf"].as<std::string>());
     if(opt_decode){
-        if(source_format!="h264" && source_format!="h265" && source_format!="hevc"){
-            throw cxxopts::exceptions::specification("illegal source format");
-        }
         if(target_format!="jpg" && target_format!="jpeg" && target_format!="png" && target_format!="yuv420p" && target_format!="rgb"){
             throw cxxopts::exceptions::specification("illegal target format");
         }
 
         std::string source_file_path(result["path"].as<std::string>());
+
+
         std::cout << "\033[1;32mdecode " + source_file_path + "...\033[0m" <<std::endl;
         if(result.count("f")){
             decode_frame_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
         }else{
-            decode_video_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            // check if frame is H264/H265 
+            VideoReader video_reader(source_file_path);
+            video_reader.Open();
+            FrameFormat frame_format = video_reader.get_frame_format();
+            std::string video_format = video_reader.get_file_format();
+            if(frame_format != FrameFormat::H264 && frame_format != FrameFormat::H265){
+                std::cout << "UnKnown Format" << std::endl;
+                throw cxxopts::exceptions::specification("illegal source format");
+            }else if (frame_format == FrameFormat::H264) {
+                source_format = "h264";
+            }else if (frame_format == FrameFormat::H265) {
+                source_format = "h265";
+            }
+            if(video_format.find("mp4") != video_format.npos){
+                decode_mp4_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            }else{
+                std::cout << source_format << std::endl;
+                decode_h26x_to_image(source_file_path, result["output"].as<std::string>(), source_format, target_format);
+            }
         }
         std::cout << "\033[1;32mdecode " + source_file_path + " complete\033[0m" <<std::endl;
     }else if(opt_encode){

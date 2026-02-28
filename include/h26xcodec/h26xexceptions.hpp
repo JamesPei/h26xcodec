@@ -1,4 +1,6 @@
 #pragma once
+#ifndef __H26XCODEC_EXCEPTION__
+#define __H26XCODEC_EXCEPTION__
 
 class H26xException : public std::runtime_error
 {
@@ -17,3 +19,5 @@ class H26xDecodeFailure : public H26xException
 public:
     H26xDecodeFailure(const char* s) : H26xException(s) {}
 };
+
+#endif
