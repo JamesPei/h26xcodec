@@ -1,6 +1,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
+#include <libavutil/error.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/mem.h>
 #include <libavformat/avformat.h>
@@ -12,6 +13,7 @@ extern "C" {
 #include <tuple>
 #include <chrono>
 #include <fstream>
+#include <string>
 
 typedef unsigned char ubyte;
 
@@ -93,16 +95,27 @@ bool H26xDecoder::is_frame_available() const
 const AVFrame& H26xDecoder::decode_frame()
 {
 #if (LIBAVCODEC_VERSION_MAJOR > 56)
-  int ret;
-  if (pkt) {
-    ret = avcodec_send_packet(context, pkt);
-    if (!ret) {
-      ret = avcodec_receive_frame(context, frame);
-      if (!ret)
-        return *frame;
+  if (!pkt || pkt->size <= 0) {
+    throw H26xDecodeFailure("no packet to decode (pkt empty)");
+  }
+
+  int ret = avcodec_send_packet(context, pkt);
+  av_packet_unref(pkt);
+  if (ret == AVERROR(EAGAIN)) {
+    ret = avcodec_receive_frame(context, frame);
+    if (ret == 0) return *frame;
+  } else if (ret == 0) {
+    ret = avcodec_receive_frame(context, frame);
+    if (ret == 0) return *frame;
+    if (ret == AVERROR(EAGAIN)) {
+      throw H26xDecodeFailure("decoder needs more packets (EAGAIN)");
     }
   }
-  throw H26xDecodeFailure("error decoding frame");
+
+  char errbuf[256];
+  av_strerror(ret, errbuf, sizeof(errbuf));
+  std::string msg = std::string("error decoding frame: ") + errbuf + " (ret=" + std::to_string(ret) + ")";
+  throw H26xDecodeFailure(msg.c_str());
 #else
   int got_picture = 0;
   int nread = avcodec_decode_video2(context, frame, &got_picture, pkt);

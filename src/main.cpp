@@ -9,6 +9,9 @@
 #include <h26xcodec/h26xdecoder.hpp>
 #include <h26xcodec/h26xencoder.hpp>
 #include <h26xcodec/converter.hpp>
+#include <h26xcodec/extractor.hpp>
+#include <h26xcodec/h26xexceptions.hpp>
+#include <cstring>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -79,6 +82,48 @@ bool decode_h26x_to_image(const std::string& source_file_path, const std::string
 }
 
 bool decode_mp4_to_image(const std::string& source_file_path, const std::string& output_dir_path, const std::string& source_format, const std::string& target_format){
+    Extractor extractor(source_file_path);
+    std::vector<std::string> frames;
+    extractor.extract(frames);
+
+    std::cout << "read " << frames.size() << " frames" << std::endl;
+
+    H26xDecoder decoder(source_format);
+    ConverterRGB24 converter;
+
+    int output_file_index = 0;
+    for(auto o_frame: frames){
+        size_t num_consumed = 0;
+        if(o_frame.size() > 0){
+            num_consumed = decoder.parse((unsigned char*)o_frame.c_str(), o_frame.size());
+        }
+
+        while (decoder.is_frame_available())
+        {
+            try {
+                const auto& frame = decoder.decode_frame();
+                int         w, h;
+                std::tie(w, h)      = width_height(frame);
+                size_t out_size = converter.predict_size(w, h);
+                std::string out_buffer(out_size, '\0');
+                converter.convert(frame, (unsigned char*)out_buffer.c_str());
+
+                if(target_format=="jpg" || target_format=="jpeg"){
+                    auto converted_jpeg = converter.to_jpeg();
+                    out_buffer = *converted_jpeg;
+                }
+
+                std::string output_file_name = std::to_string(output_file_index) + "." + target_format;
+                std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
+                output_stream.write(out_buffer.c_str(), out_buffer.size());
+                output_file_index++;
+            } catch (const H26xDecodeFailure& e) {
+                if (std::strstr(e.what(), "EAGAIN"))
+                    break;
+                throw;
+            }
+        }
+    }
     return true;
 }
 
@@ -127,27 +172,33 @@ bool decode_frame_to_image(const std::string& source_file_path, const std::strin
         
         while (decoder.is_frame_available())
         {
-            const auto& frame = decoder.decode_frame();
-            int         w, h;
-            std::tie(w, h)      = width_height(frame);
-            size_t out_size = converter.predict_size(w, h);
-            std::string out_buffer(out_size, '\0');
-            converter.convert(frame, (unsigned char*)out_buffer.c_str());
+            try {
+                const auto& frame = decoder.decode_frame();
+                int         w, h;
+                std::tie(w, h)      = width_height(frame);
+                size_t out_size = converter.predict_size(w, h);
+                std::string out_buffer(out_size, '\0');
+                converter.convert(frame, (unsigned char*)out_buffer.c_str());
 
-            if(target_format=="jpg" || target_format=="jpeg"){
-                auto converted_jpeg = converter.to_jpeg();
-                out_buffer = *converted_jpeg;
-            }
+                if(target_format=="jpg" || target_format=="jpeg"){
+                    auto converted_jpeg = converter.to_jpeg();
+                    out_buffer = *converted_jpeg;
+                }
 
-            if(filename_index >= frame_files.size()){
-                break;
+                if(filename_index >= frame_files.size()){
+                    break;
+                }
+                size_t last_dot = frame_files[filename_index].string().rfind('.');
+                size_t last_backslash = frame_files[filename_index].string().rfind('/');
+                std::string output_file_name = frame_files[filename_index].string().substr(last_backslash+1, last_dot-last_backslash)+target_format;
+                std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
+                output_stream.write(out_buffer.c_str(), out_size);
+                filename_index++;
+            } catch (const H26xDecodeFailure& e) {
+                if (std::strstr(e.what(), "EAGAIN"))
+                    break;
+                throw;
             }
-            size_t last_dot = frame_files[filename_index].string().rfind('.');
-            size_t last_backslash = frame_files[filename_index].string().rfind('/');
-            std::string output_file_name = frame_files[filename_index].string().substr(last_backslash+1, last_dot-last_backslash)+target_format;
-            std::ofstream output_stream(output_dir_path+"/"+output_file_name, std::ios::binary);
-            output_stream.write(out_buffer.c_str(), out_size);
-            filename_index++;
         }
     }
 }
