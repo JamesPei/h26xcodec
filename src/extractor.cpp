@@ -36,6 +36,9 @@ void Extractor::extract(std::vector<std::string>& output_frames){
         return;
     }
 
+    // 从MP4文件中提取H.26x裸流（Elementary Stream）有两种标准格式：Annex B（带起始码）和AVCC（长度前缀); Annex B可以被大多数h26x解码器播放
+    // 需要保持MP4内部的原始存储格式（用于分析容器结构或直接写回MP4）使用AVCC
+    // BSF: Bitstream Filter
     const char* bsf_name = (fmt_ctx->streams[video_stream_index]->codecpar->codec_id == AV_CODEC_ID_HEVC)
                            ? "hevc_mp4toannexb" : "h264_mp4toannexb";
     const AVBitStreamFilter* bsf = av_bsf_get_by_name(bsf_name);
@@ -50,11 +53,20 @@ void Extractor::extract(std::vector<std::string>& output_frames){
         avformat_close_input(&fmt_ctx);
         return;
     }
+
+    // int avcodec_parameters_copy(AVCodecParameters *dst, const AVCodecParameters *src);
+    // 把一个流的编解码参数复制到另一个目标结构，通常是在设置解码器/编码器或BSF的输入参数时使用
+    // 把MP4视频流的AVCodecParameters复制进BSF的par_in，让h264_mp4toannexb/hevc_mp4toannexb能：
+    // 1. 识别H.264/H.265
+    // 2. 使用extradata（SPS/PPS）做 AVCC → Annex B 转换
+    // 3. 在首个输出packet前正确插入参数集
+    // 如果不做这步，BSF 无法正确处理 extradata，转换结果可能出错
     if (avcodec_parameters_copy(bsf_ctx->par_in, fmt_ctx->streams[video_stream_index]->codecpar) < 0) {
         av_bsf_free(&bsf_ctx);
         avformat_close_input(&fmt_ctx);
         return;
     }
+
     if (av_bsf_init(bsf_ctx) < 0) {
         av_bsf_free(&bsf_ctx);
         avformat_close_input(&fmt_ctx);
@@ -81,6 +93,8 @@ void Extractor::extract(std::vector<std::string>& output_frames){
         av_init_packet(&annexb_pkt);
         annexb_pkt.data = nullptr;
         annexb_pkt.size = 0;
+        // int av_bsf_receive_packet(AVBSFContext *ctx, AVPacket *pkt);
+        // 从BSF取出一条已处理过的packet
         while (av_bsf_receive_packet(bsf_ctx, &annexb_pkt) == 0) {
             std::string frame(reinterpret_cast<const char*>(annexb_pkt.data), annexb_pkt.size);
             output_frames.push_back(std::move(frame));

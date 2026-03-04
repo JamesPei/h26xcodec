@@ -28,8 +28,8 @@ Usage:
   -e, --encode                  encode image to h26x
   -p, --path arg                file or dir path (default: .)
       --sf arg                  the format of source file, for decode is
-                                h264/h265, for encode is
-                                jpg/png/yuv420p/rgb (default: h265)
+                                h264/h265, if video format is MP4, this parameter can be omitted;
+                                for encode is jpg/png/yuv420p/rgb (default: h265);
       --tf arg                  the format of target file, for decode is
                                 jpg/png/yuv420p/rgb, for encode is
                                 h264/h265 (default: jpeg)
